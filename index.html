@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xsukax YouTube Karaoke Recorder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; }
+        .notification { position: fixed; top: 20px; right: 20px; z-index: 1000; min-width: 300px; max-width: 400px; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-content { background: white; border-radius: 8px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; animation: scaleIn 0.2s ease-out; }
+        @keyframes scaleIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .recording-indicator { animation: pulse 1.5s ease-in-out infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .btn { transition: all 0.2s ease; }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .btn:active { transform: translateY(0); }
+        .waveform { display: flex; align-items: center; justify-content: center; gap: 2px; height: 40px; }
+        .waveform-bar { width: 3px; background: #3b82f6; border-radius: 2px; animation: waveAnimation 1s ease-in-out infinite; }
+        .waveform-bar:nth-child(1) { animation-delay: 0s; }
+        .waveform-bar:nth-child(2) { animation-delay: 0.1s; }
+        .waveform-bar:nth-child(3) { animation-delay: 0.2s; }
+        .waveform-bar:nth-child(4) { animation-delay: 0.3s; }
+        .waveform-bar:nth-child(5) { animation-delay: 0.4s; }
+        @keyframes waveAnimation { 0%, 100% { height: 10px; } 50% { height: 35px; } }
+        .video-tab-status { border-left: 4px solid #3b82f6; }
+        .brand { color: #2563eb; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <!-- Header -->
+        <header class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h1 class="text-3xl font-semibold text-gray-900 mb-2">🎤 <span class="brand">xsukax</span> YouTube Karaoke Recorder</h1>
+            <p class="text-gray-600 text-sm">Record your voice with YouTube karaoke tracks and download as audio file</p>
+            <p class="text-xs text-gray-500 mt-2">⚡ Optimized for Chrome & Edge browsers</p>
+        </header>
+
+        <!-- URL Input Section -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">YouTube Video URL</label>
+            <div class="flex gap-3">
+                <input type="text" id="youtubeUrl" placeholder="Paste YouTube karaoke video URL here..." class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none">
+                <button onclick="openVideoTab()" id="openVideoBtn" class="btn px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700">Open Video</button>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">✨ Works with ALL YouTube videos - no embedding restrictions!</p>
+        </section>
+
+        <!-- Active Video Tab Section -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" id="videoTabSection" style="display: none;">
+            <div class="video-tab-status bg-blue-50 p-4 rounded-lg">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-2xl">🎬</span>
+                            <h3 class="font-semibold text-gray-900">Video Tab Active</h3>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-1" id="videoTitle">YouTube video opened in new tab</p>
+                        <a href="#" id="videoLink" target="_blank" class="text-xs text-blue-600 hover:text-blue-700 underline">Switch to video tab</a>
+                    </div>
+                    <button onclick="closeVideoTab()" class="btn px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm font-medium hover:bg-gray-300">Close</button>
+                </div>
+                <div class="mt-3 p-3 bg-white rounded border border-blue-200">
+                    <p class="text-xs text-gray-700">💡 <strong>Ready to record!</strong> Click "Start Recording" below and select the YouTube tab when prompted.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recording Controls -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Recording Controls</h2>
+            
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">🎤 Your Microphone</span>
+                        <span id="micStatus" class="text-xs px-2 py-1 bg-gray-200 text-gray-600 rounded">Not connected</span>
+                    </div>
+                    <div id="micWaveform" class="waveform" style="display: none;">
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">🎵 YouTube Audio</span>
+                        <span id="tabStatus" class="text-xs px-2 py-1 bg-gray-200 text-gray-600 rounded">Not captured</span>
+                    </div>
+                    <div id="tabWaveform" class="waveform" style="display: none;">
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                        <div class="waveform-bar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+                <button onclick="startRecording()" id="startBtn" class="btn px-6 py-3 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 flex items-center gap-2">
+                    <span class="text-lg">⏺</span> Start Recording
+                </button>
+                <button onclick="stopRecording()" id="stopBtn" class="btn px-6 py-3 bg-gray-600 text-white rounded-md font-medium hover:bg-gray-700 flex items-center gap-2" disabled style="opacity: 0.5; cursor: not-allowed;">
+                    <span class="text-lg">⏹</span> Stop Recording
+                </button>
+                <button onclick="showInstructions()" class="btn px-6 py-3 bg-blue-100 text-blue-700 rounded-md font-medium hover:bg-blue-200 flex items-center gap-2">
+                    <span class="text-lg">ℹ️</span> How to Use
+                </button>
+            </div>
+
+            <div id="recordingIndicator" class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2" style="display: none;">
+                <span class="recording-indicator text-red-600 text-lg">🔴</span>
+                <span class="text-sm font-medium text-red-600">Recording in progress...</span>
+                <span id="recordingTime" class="text-sm text-red-600 ml-auto">00:00</span>
+            </div>
+        </section>
+
+        <!-- Recordings List -->
+        <section class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Your Recordings</h2>
+            <div id="recordingsList" class="space-y-3">
+                <p class="text-sm text-gray-500">No recordings yet. Start recording to create your first karaoke track!</p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="mt-8 text-center text-sm text-gray-500">
+            <p>Created by <span class="brand">xsukax</span> • Privacy-first, client-side processing only</p>
+        </footer>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer"></div>
+
+    <!-- Modal Container -->
+    <div id="modalContainer"></div>
+
+    <script>
+        let videoTab = null;
+        let currentVideoUrl = null;
+        let micStream = null;
+        let tabStream = null;
+        let audioContext = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordingTimer = null;
+
+        // YouTube URL parsing
+        function extractVideoId(url) {
+            url = url.trim();
+            if (!url) return null;
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtube\.com\/watch\?.*&v=)([^&\n?#]+)/,
+                /youtu\.be\/([^?&\n#]+)/,
+                /youtube\.com\/embed\/([^?&\n#]+)/,
+                /youtube\.com\/v\/([^?&\n#]+)/,
+                /youtube\.com\/e\/([^?&\n#]+)/,
+                /youtube\.com\/shorts\/([^?&\n#]+)/,
+                /youtube\.com\/live\/([^?&\n#]+)/,
+                /youtube\.com\/watch\/([^?&\n#]+)/
+            ];
+            for (let pattern of patterns) {
+                const match = url.match(pattern);
+                if (match && match[1]) return match[1];
+            }
+            return null;
+        }
+
+        // Open YouTube video in new tab
+        function openVideoTab() {
+            const url = document.getElementById('youtubeUrl').value.trim();
+            
+            if (!url) {
+                showNotification('Please enter a YouTube URL', 'error');
+                return;
+            }
+
+            const videoId = extractVideoId(url);
+            
+            if (!videoId) {
+                showNotification('Invalid YouTube URL format', 'error');
+                return;
+            }
+
+            // Build proper YouTube watch URL
+            currentVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            
+            // Open in new tab
+            videoTab = window.open(currentVideoUrl, '_blank');
+            
+            if (videoTab) {
+                document.getElementById('videoTabSection').style.display = 'block';
+                document.getElementById('videoLink').href = currentVideoUrl;
+                showNotification('Video opened in new tab! Ready to record.', 'success');
+            } else {
+                showNotification('Please allow pop-ups to open the video tab', 'error');
+            }
+        }
+
+        function closeVideoTab() {
+            if (videoTab && !videoTab.closed) {
+                videoTab.close();
+            }
+            videoTab = null;
+            currentVideoUrl = null;
+            document.getElementById('videoTabSection').style.display = 'none';
+            document.getElementById('youtubeUrl').value = '';
+            showNotification('Video tab closed', 'info');
+        }
+
+        // Start recording
+        async function startRecording() {
+            if (!currentVideoUrl) {
+                showNotification('Please open a YouTube video first', 'error');
+                return;
+            }
+
+            try {
+                // Request microphone access
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                updateStatus('micStatus', 'Connected', 'green');
+                document.getElementById('micWaveform').style.display = 'flex';
+
+                // Show instructions for tab capture
+                showModal(
+                    'Capture YouTube Tab Audio',
+                    `
+                    <div class="space-y-3 text-sm text-gray-600">
+                        <p>In the next dialog:</p>
+                        <ol class="list-decimal list-inside space-y-2 ml-2">
+                            <li><strong class="text-gray-900">Click the "Tab" option</strong></li>
+                            <li><strong class="text-gray-900">Select the YouTube tab</strong> (you'll see a preview with the video thumbnail)</li>
+                            <li><strong class="text-gray-900">Check "Share tab audio"</strong> ✓ (very important!)</li>
+                            <li><strong class="text-gray-900">Click "Share"</strong></li>
+                        </ol>
+                        <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p class="text-blue-800 text-xs"><strong>💡 Tip:</strong> Make sure the YouTube video is playing before you start recording for best results.</p>
+                        </div>
+                    </div>
+                    `,
+                    [
+                        { text: 'Continue', primary: true, action: captureTabAudio },
+                        { text: 'Cancel', action: () => { cleanup(); closeModal(); } }
+                    ]
+                );
+
+            } catch (error) {
+                showNotification('Failed to access microphone: ' + error.message, 'error');
+                cleanup();
+            }
+        }
+
+        async function captureTabAudio() {
+            closeModal();
+            
+            try {
+                // Request display media with audio
+                tabStream = await navigator.mediaDevices.getDisplayMedia({ 
+                    video: true,
+                    audio: true 
+                });
+
+                // Check if audio is included
+                const audioTracks = tabStream.getAudioTracks();
+                if (audioTracks.length === 0) {
+                    showNotification('No audio captured. Please check "Share tab audio" and try again.', 'error');
+                    cleanup();
+                    return;
+                }
+
+                updateStatus('tabStatus', 'Captured', 'green');
+                document.getElementById('tabWaveform').style.display = 'flex';
+
+                // Start mixing and recording
+                startMixingAndRecording();
+
+            } catch (error) {
+                if (error.name === 'NotAllowedError') {
+                    showNotification('Screen capture was cancelled', 'info');
+                } else {
+                    showNotification('Failed to capture tab audio: ' + error.message, 'error');
+                }
+                cleanup();
+            }
+        }
+
+        function startMixingAndRecording() {
+            // Create audio context
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Create source nodes
+            const micSource = audioContext.createMediaStreamSource(micStream);
+            const tabSource = audioContext.createMediaStreamSource(tabStream);
+
+            // Create gain nodes for volume control
+            const micGain = audioContext.createGain();
+            const tabGain = audioContext.createGain();
+            micGain.gain.value = 1.2; // Boost microphone slightly
+            tabGain.gain.value = 0.7; // Lower YouTube volume for better vocal clarity
+
+            // Create destination for mixing
+            const destination = audioContext.createMediaStreamDestination();
+
+            // Connect nodes
+            micSource.connect(micGain);
+            tabSource.connect(tabGain);
+            micGain.connect(destination);
+            tabGain.connect(destination);
+
+            // Start recording mixed stream
+            const options = { mimeType: 'audio/webm;codecs=opus' };
+            mediaRecorder = new MediaRecorder(destination.stream, options);
+
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                addRecordingToList(blob);
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            recordingStartTime = Date.now();
+
+            // Update UI
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').style.opacity = '0.5';
+            document.getElementById('startBtn').style.cursor = 'not-allowed';
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('stopBtn').style.opacity = '1';
+            document.getElementById('stopBtn').style.cursor = 'pointer';
+            document.getElementById('recordingIndicator').style.display = 'flex';
+
+            // Start timer
+            updateRecordingTime();
+            recordingTimer = setInterval(updateRecordingTime, 1000);
+
+            showNotification('🎤 Recording started! Sing along!', 'success');
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+
+            mediaRecorder.stop();
+            isRecording = false;
+            clearInterval(recordingTimer);
+
+            // Update UI
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').style.opacity = '1';
+            document.getElementById('startBtn').style.cursor = 'pointer';
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('stopBtn').style.opacity = '0.5';
+            document.getElementById('stopBtn').style.cursor = 'not-allowed';
+            document.getElementById('recordingIndicator').style.display = 'none';
+
+            cleanup();
+            showNotification('Recording stopped and saved! 🎉', 'success');
+        }
+
+        function updateRecordingTime() {
+            if (!isRecording) return;
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('recordingTime').textContent = `${minutes}:${seconds}`;
+        }
+
+        function cleanup() {
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop());
+                micStream = null;
+            }
+            if (tabStream) {
+                tabStream.getTracks().forEach(track => track.stop());
+                tabStream = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            updateStatus('micStatus', 'Not connected', 'gray');
+            updateStatus('tabStatus', 'Not captured', 'gray');
+            document.getElementById('micWaveform').style.display = 'none';
+            document.getElementById('tabWaveform').style.display = 'none';
+        }
+
+        function updateStatus(elementId, text, color) {
+            const element = document.getElementById(elementId);
+            element.textContent = text;
+            element.className = 'text-xs px-2 py-1 rounded';
+            
+            if (color === 'green') {
+                element.classList.add('bg-green-100', 'text-green-700');
+            } else if (color === 'gray') {
+                element.classList.add('bg-gray-200', 'text-gray-600');
+            }
+        }
+
+        function addRecordingToList(blob) {
+            const listContainer = document.getElementById('recordingsList');
+            
+            // Clear placeholder
+            if (listContainer.querySelector('p')) {
+                listContainer.innerHTML = '';
+            }
+
+            const timestamp = new Date().toLocaleString();
+            const recordingId = Date.now();
+            const url = URL.createObjectURL(blob);
+
+            const recordingDiv = document.createElement('div');
+            recordingDiv.className = 'p-4 bg-gray-50 rounded-lg border border-gray-200';
+            recordingDiv.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div>
+                        <h3 class="font-medium text-gray-900">🎤 Karaoke Recording ${listContainer.children.length + 1}</h3>
+                        <p class="text-xs text-gray-500">${timestamp}</p>
+                    </div>
+                    <button onclick="deleteRecording(${recordingId})" class="btn px-3 py-1 bg-red-100 text-red-700 rounded text-sm font-medium hover:bg-red-200">Delete</button>
+                </div>
+                <audio controls class="w-full mb-2" src="${url}"></audio>
+                <button onclick="downloadRecording('${url}', ${recordingId})" class="btn w-full px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 flex items-center justify-center gap-2">
+                    <span>⬇️</span> Download Recording
+                </button>
+            `;
+            recordingDiv.id = `recording-${recordingId}`;
+
+            listContainer.insertBefore(recordingDiv, listContainer.firstChild);
+        }
+
+        function deleteRecording(id) {
+            const element = document.getElementById(`recording-${id}`);
+            if (element) {
+                element.remove();
+                showNotification('Recording deleted', 'info');
+            }
+
+            // Show placeholder if no recordings
+            const listContainer = document.getElementById('recordingsList');
+            if (listContainer.children.length === 0) {
+                listContainer.innerHTML = '<p class="text-sm text-gray-500">No recordings yet. Start recording to create your first karaoke track!</p>';
+            }
+        }
+
+        async function downloadRecording(url, id) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `xsukax-karaoke-${id}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showNotification('Recording downloaded! 🎵', 'success');
+        }
+
+        function showInstructions() {
+            showModal(
+                '📖 How to Use This App',
+                `
+                <div class="space-y-4 text-sm text-gray-600">
+                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-blue-800 text-sm"><strong>✅ Best Experience:</strong> Use Chrome or Edge browser for optimal performance.</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <p><strong class="text-gray-900 text-base">Step 1: Load Video</strong></p>
+                        <p>Paste any YouTube karaoke video URL and click "Open Video". The video will open in a new tab.</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <p><strong class="text-gray-900 text-base">Step 2: Start Recording</strong></p>
+                        <p>Click "Start Recording" and grant microphone access when prompted.</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <p><strong class="text-gray-900 text-base">Step 3: Select YouTube Tab</strong></p>
+                        <p>In the screen share dialog, click "Tab", select the YouTube tab (you'll see the video thumbnail), and <strong>check "Share tab audio"</strong> ✓</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <p><strong class="text-gray-900 text-base">Step 4: Sing Along!</strong></p>
+                        <p>Play the YouTube video and sing your heart out! The app records both the music and your voice in real-time.</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <p><strong class="text-gray-900 text-base">Step 5: Stop & Download</strong></p>
+                        <p>Click "Stop Recording" when finished, then download your karaoke performance!</p>
+                    </div>
+
+                    <div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-green-800 font-medium text-sm mb-2">✨ Key Features:</p>
+                        <ul class="text-green-700 text-xs space-y-1 ml-4 list-disc">
+                            <li>Works with <strong>ALL</strong> YouTube videos (no embedding restrictions!)</li>
+                            <li>High-quality audio mixing with Web Audio API</li>
+                            <li>Balanced volume (vocals boosted, music lowered)</li>
+                            <li>100% client-side processing (privacy-first)</li>
+                            <li>Instant download as WebM audio file</li>
+                        </ul>
+                    </div>
+                </div>
+                `,
+                [{ text: 'Got it!', primary: true, action: closeModal }]
+            );
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            
+            let bgColor = 'bg-blue-50 border-blue-200';
+            let textColor = 'text-blue-800';
+            let icon = 'ℹ️';
+            
+            if (type === 'success') {
+                bgColor = 'bg-green-50 border-green-200';
+                textColor = 'text-green-800';
+                icon = '✅';
+            } else if (type === 'error') {
+                bgColor = 'bg-red-50 border-red-200';
+                textColor = 'text-red-800';
+                icon = '❌';
+            }
+            
+            notification.className = `notification ${bgColor} border ${textColor} p-4 rounded-lg shadow-lg`;
+            notification.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <span class="text-lg">${icon}</span>
+                    <p class="text-sm font-medium flex-1">${message}</p>
+                    <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+            `;
+            
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        // Modal system
+        function showModal(title, content, buttons = []) {
+            const modalContainer = document.getElementById('modalContainer');
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            
+            const buttonsHtml = buttons.map((btn, idx) => {
+                const btnClass = btn.primary 
+                    ? 'px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700'
+                    : 'px-4 py-2 bg-gray-200 text-gray-700 rounded-md font-medium hover:bg-gray-300';
+                return `<button onclick="modalButtons[${idx}].action()" class="btn ${btnClass}">${btn.text}</button>`;
+            }).join('');
+            
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="p-6">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-4">${title}</h2>
+                        <div class="text-gray-600 mb-6">${content}</div>
+                        <div class="flex gap-3 justify-end">
+                            ${buttonsHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modalContainer.appendChild(modal);
+            window.modalButtons = buttons;
+        }
+
+        function closeModal() {
+            const modalContainer = document.getElementById('modalContainer');
+            modalContainer.innerHTML = '';
+        }
+
+        // Welcome message
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                showNotification('Welcome! Click "How to Use" for instructions 🎤', 'info');
+            }, 500);
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (videoTab && !videoTab.closed) {
+                videoTab.close();
+            }
+        });
+    </script>
+</body>
+</html>
